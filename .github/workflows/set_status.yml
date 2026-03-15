@@ -1,4 +1,3 @@
-
 name: Set status
 
 on:
@@ -23,24 +22,22 @@ on:
         type: string
 
 permissions:
-  statuses: write      
+  statuses: write
 
 jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-    
-    - name: Set status
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh api \
-          --method POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          /repos/${{ github.repository }}/statuses/${{ github.sha }} \
-          -f "state=${{ inputs.state }}" \
-          -f "target_url=${{ inputs.url }}" \
-          -f "description=${{ inputs.description }}" \
-          -f "context=${{ inputs.context }}"
-
+      - name: Set status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/statuses/${{ github.sha }} \
+            -f "state=${{ inputs.state }}" \
+            -f "target_url=${{ inputs.url }}" \
+            -f "description=${{ inputs.description }}" \
+            -f "context=${{ inputs.context }}"

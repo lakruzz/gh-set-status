@@ -43,7 +43,7 @@ Assuming
 Install:
 
 Install it as a GitHub CLI extension:
-gh extension install thetechcollective/gh-set-status
+gh extension install lakruzz/gh-set-status
 
 Create a step in your GitHub Actions workflow to install the `gh-set-status` 
 extension:
@@ -52,7 +52,7 @@ extension:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh extension install thetechcollective/gh-set-status --pin stable
+        gh extension install lakruzz/gh-set-status
 
 It requires statuses:write permissions - like this:
 
@@ -71,10 +71,69 @@ gh set-status inherit feature-branch
 
 gh set-status inherit abc1234
 
-See plenty of more examples in the workflows in https://github.com/lakruzz/workflows
+Debug mode:
+Set the environment variable DEBUG_SET_STATUS or DEBUG-SET-STATUS to any non-empty 
+value to enable debug logging and see the API request details.
 
 EOF
 )
+
+# Debug mode can be enabled with either DEBUG_SET_STATUS or DEBUG-SET-STATUS.
+is_debug_enabled() {
+  if [[ -n "$DEBUG_SET_STATUS" ]]; then
+    return 0
+  fi
+
+  if [[ -n "$(printenv 'DEBUG-SET-STATUS' 2>/dev/null || true)" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+debug_log() {
+  if is_debug_enabled; then
+    echo "$@"
+  fi
+}
+
+run_status_api() {
+  local STATE="$1"
+  local TARGET_URL="$2"
+  local DESCRIPTION="$3"
+  local CONTEXT="$4"
+  local DEBUG_ENABLED=false
+  local -a GH_API_FLAGS=()
+
+  if is_debug_enabled; then
+    DEBUG_ENABLED=true
+  else
+    GH_API_FLAGS+=(--silent)
+  fi
+
+  if [[ "$DEBUG_ENABLED" == "true" ]]; then
+    set -x
+  fi
+
+  gh api \
+    "${GH_API_FLAGS[@]}" \
+    --method POST \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+    -f "state=$STATE" \
+    -f "target_url=$TARGET_URL" \
+    -f "description=$DESCRIPTION" \
+    -f "context=$CONTEXT"
+
+  local EXIT_CODE=$?
+
+  if [[ "$DEBUG_ENABLED" == "true" ]]; then
+    set +x
+  fi
+
+  return "$EXIT_CODE"
+}
 
 # --- Helpers ---
 check_env_or_die() {
@@ -113,7 +172,7 @@ derive_ref_from_commit_message() {
 inherit_statuses() {
   local SRC_REF="$1"
   if [[ -z "$SRC_REF" ]]; then
-    echo "ℹ️ No ref provided, attempting to derive from commit message of $GITHUB_SHA"
+    debug_log "ℹ️ No ref provided, attempting to derive from commit message of $GITHUB_SHA"
     SRC_REF=$(derive_ref_from_commit_message) || true
     if [[ -z "$SRC_REF" ]]; then
       echo "❌ Could not derive {ref} from commit message. Provide a ref explicitly."
@@ -122,13 +181,13 @@ inherit_statuses() {
       echo "$USAGE"
       exit 1
     fi
-    echo "ℹ️ Derived ref: $SRC_REF"
+    debug_log "ℹ️ Derived ref: $SRC_REF"
   fi
 
-  echo "####### Inheriting commit statuses ########"
-  echo "  from ref:     '$SRC_REF'"
-  echo "  to commit:    '$GITHUB_SHA'"
-  echo "  repository:   '$GITHUB_REPOSITORY'"
+  debug_log "####### Inheriting commit statuses ########"
+  debug_log "  from ref:     '$SRC_REF'"
+  debug_log "  to commit:    '$GITHUB_SHA'"
+  debug_log "  repository:   '$GITHUB_REPOSITORY'"
 
   echo "Fetching statuses from ref \`$SRC_REF\`..."                   >> $GITHUB_STEP_SUMMARY
   echo "Read from the commit message on this commit  \`$GITHUB_SHA\`" >> $GITHUB_STEP_SUMMARY
@@ -145,7 +204,7 @@ inherit_statuses() {
   local exit_code=$?
   set -e
 
-  echo $api_result
+  debug_log "$api_result"
 
   if [[ $exit_code -ne 0 ]] || [[ -z "$api_result" ]]; then
     echo "❌ Failed to fetch statuses from ref '$SRC_REF'." >> $GITHUB_STEP_SUMMARY
@@ -181,20 +240,8 @@ inherit_statuses() {
       URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
     fi
 
-    echo "  inheriting: context='$CONTEXT' state='$STATE'"
-    {
-      set -x
-      gh api \
-        --method POST \
-        -H "Accept: application/vnd.github+json" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
-        -f "state=$STATE" \
-        -f "target_url=$URL" \
-        -f "description=$DESCRIPTION" \
-        -f "context=$CONTEXT"
-      set +x
-    } 2>&1
+    debug_log "  inheriting: context='$CONTEXT' state='$STATE'"
+    run_status_api "$STATE" "$URL" "$DESCRIPTION" "$CONTEXT"
   done < <(gh api \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -232,25 +279,16 @@ set_status_cmd() {
     TARGET_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
   fi
 
-  echo "####### Setting the commit status ########"
-  echo "  state:       '$STATE'"
-  echo "  description: '$DESCRIPTION'"
-  echo "  context:     '$CONTEXT'"
-  echo "  url:         '$TARGET_URL'"
+  debug_log "####### Setting the commit status ########"
+  debug_log "  state:       '$STATE'"
+  debug_log "  description: '$DESCRIPTION'"
+  debug_log "  context:     '$CONTEXT'"
+  debug_log "  url:         '$TARGET_URL'"
 
-  {
-    set -x
-    gh api \
-      --method POST \
-      -H "Accept: application/vnd.github+json" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
-      -f "state=$STATE" \
-      -f "target_url=$TARGET_URL" \
-      -f "description=$DESCRIPTION" \
-      -f "context=$CONTEXT"
-    set +x
-  } 2>&1
+  run_status_api "$STATE" "$TARGET_URL" "$DESCRIPTION" "$CONTEXT"
+
+  echo "✅ Set status '$CONTEXT' to '$STATE'"
+
 }
 
 # --- Main ---

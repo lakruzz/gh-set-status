@@ -1,0 +1,4 @@
+#!/bin/bash
+
+markdownlint-cli2 --fix
+prettier --write .

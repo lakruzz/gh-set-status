@@ -1,55 +1,60 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "Ubuntu",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/base:noble",
-	"features": {
-		"ghcr.io/devcontainers/features/common-utils:2": {
-			"installZsh": true,
-			"installOhMyZsh": true,
-			"installOhMyZshConfig": true,
-			"upgradePackages": true,
-			"username": "automatic",
-			"userUid": "automatic",
-			"userGid": "automatic"
-		},
-		"ghcr.io/devcontainers/features/github-cli:1": {
-			"installDirectlyFromGitHubRelease": true,
-			"version": "latest"
-		},
-		"ghcr.io/devcontainers/features/python:1": {
-			"installTools": true,
-			"version": "latest"
-		},
-		"ghcr.io/devcontainers-extra/features/npm-packages:1": {
-			"packages": ["cspell", "markdownlint-cli2"]
-		}
-	},
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"DavidAnson.vscode-markdownlint",
-				"streetsidesoftware.code-spell-checker",
-				"esbenp.prettier-vscode"
-			]	
-		}
-	},
-
-	"initializeCommand": "./.devcontainer/initializeCommand.sh",
-	"postCreateCommand": "./.devcontainer/postCreateCommand.sh",
-	"postStartCommand": "rm -f ./.devcontainer/_temp.token",
-	// Mount the workspace folder one level higher than the git repo
-	"workspaceMount": "source=${localWorkspaceFolder}/../,target=/workspaces,type=bind",
-	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-
-    "remoteEnv": {
-        "UV_LINK_MODE": "copy"
+  "name": "Ubuntu",
+  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+  "image": "mcr.microsoft.com/devcontainers/base:noble",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": true,
+      "installOhMyZshConfig": true,
+      "upgradePackages": true,
+      "username": "automatic",
+      "userUid": "automatic",
+      "userGid": "automatic"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "installDirectlyFromGitHubRelease": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "installTools": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers-extra/features/npm-packages:1": {
+      "packages": ["cspell", "markdownlint-cli2", "prettier"]
     }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "DavidAnson.vscode-markdownlint",
+        "streetsidesoftware.code-spell-checker",
+        "esbenp.prettier-vscode",
+        "mhutchie.git-graph",
+        "mk12.better-git-line-blame"
+      ]
+    }
+  },
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+  "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
+  // Mount the workspace folder one level higher than the git repo
+  "workspaceMount": "source=${localWorkspaceFolder}/../,target=/workspaces,type=bind",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "mounts": [
+    "source=${localEnv:HOME},target=/localhome,type=bind,consistency=cached"
+  ],
+  "remoteEnv": {
+    "GH_TOKEN": "${localEnv:GH_TOKEN}",
+    "_GPG_KEY": "${localEnv:_GPG_KEY}",
+    "_GPG_PASSPHRASE": "${localEnv:_GPG_PASSPHRASE}",
+    "GPG_TTY": "${containerEnv:GPG_TTY}"
+  }
 
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
+
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
 }

@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: 'Optional commit reference to inherit statuses from (if omitted, ref is derived from the current commit message)'
+        description: "Optional commit reference to inherit statuses from (if omitted, ref is derived from the current commit message)"
         required: false
-        default: ''
+        default: ""
         type: string
 permissions:
   statuses: write
@@ -16,28 +16,27 @@ jobs:
     name: Inherit statuses
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install gh dependencies
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh extension install . --force
+      - name: Install gh dependencies
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh extension install . --force
 
-    - name: Print GITHUB_SHA
-      run: echo "GITHUB_SHA ${{ github.sha }}"
+      - name: Print GITHUB_SHA
+        run: echo "GITHUB_SHA ${{ github.sha }}"
 
-    - name: Print commit message
-      run: git log -1 --format=%B "${{ github.sha }}"
+      - name: Print commit message
+        run: git log -1 --format=%B "${{ github.sha }}"
 
-    - name: Inherit statuses
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        if [ -n "${{ inputs.ref }}" ]; then
-          gh set-status inherit "${{ inputs.ref }}"
-        else
-          gh set-status inherit
-        fi
-
+      - name: Inherit statuses
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.ref }}" ]; then
+            gh set-status inherit "${{ inputs.ref }}"
+          else
+            gh set-status inherit
+          fi

@@ -1,36 +1,40 @@
 # `gh set-status <state> <description>`
 
 ## Install:
+
 `gh extension install thetechcollective/gh-set-status`
 
 ## Run:
+
 `gh set-status success "All tests passed"``
 
 ## Args:
 
 #### `state`
-The state of the status. 
+
+The state of the status.
 
 - **required**: true
 - **type**: string<br/>
   Must be one of `error`, `failure`, `pending`, `success`<br/>
 
 #### `description`
+
 The description of the status, as it will be presented on the commit status
 
 - **required**: true
 - **type**: string
 
 ## Derived values
-- **`context`** will be the `id` of the stp that utilises `gh set-status` 
-- **`target_url** for the statuse (when you click details) will be a link to the GitHub action that set it
 
+- **`context`** will be the `id` of the stp that utilises `gh set-status`
+- **`target_url** for the status (when you click details) will be a link to the GitHub action that set it
 
->[!WARNING]
->The script will fail if executed outside a GitHub Workflow Runner context
-
+> [!WARNING]
+> The script will fail if executed outside a GitHub Workflow Runner context
 
 ## Use case example
+
 ```yml
 name: Wrapup
 # This workflow is triggered on push to branches that begins with a number (issue-branches)
@@ -38,8 +42,8 @@ name: Wrapup
 on:
   workflow_dispatch:
   push:
-    branches: 
-      - '[0-9]*'
+    branches:
+      - "[0-9]*"
 
 # No special permissions defined before we need them
 permissions:
@@ -48,7 +52,6 @@ permissions:
 jobs:
   # This job will install uv, run the unittests and output the arguments we need to set the status
   verification:
-
     runs-on: ubuntu-latest
     permissions:
       statuses: write
@@ -94,16 +97,17 @@ jobs:
           exit $result
 ```
 
->[!NOTE]
-> 1. The `gh` exension must be installed in the same or a previous step: `gh extension install thetechcollective/gh-set-status`
-> 2. Utilization of `gh` reguires `$GH_TOKEN` to be set.
-> 2. The `unittest` step inside `verification` sets the statuses itself
-> 3. The `unittest` step must prevent the step from dying, even if the unittest fails (`set +e`), and it must manually capture the result and pass it on (`exit $result`)
+> [!NOTE]
+>
+> 1. The `gh` extension must be installed in the same or a previous step: `gh extension install thetechcollective/gh-set-status`
+> 2. Utilization of `gh` requires `$GH_TOKEN` to be set.
+> 3. The `unittest` step inside `verification` sets the statuses itself
+> 4. The `unittest` step must prevent the step from dying, even if the unittest fails (`set +e`), and it must manually capture the result and pass it on (`exit $result`)
 > 5. The permissions `statuses: write` must be set on the job that contains steps that wish to utilize `gh set-status`
 
-## Benefits over the callabel workflow
+## Benefits over the callable workflow
 
-- The statuses doesn't contain an arbitrary _extra_ 
+- The statuses doesn't contain an arbitrary _extra_
 
 <img width="574" alt="Image" src="https://github.com/user-attachments/assets/9f623d06-933b-4875-8282-a8ae7db72bef" />
 
