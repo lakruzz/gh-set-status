@@ -1,34 +1,29 @@
 #!/usr/bin/env bash
 
-PREFIX="🔑  "
+GPG_PREFIX="🔑    "
+echo "$GPG_PREFIX Sourcing $(basename "${BASH_SOURCE[0]}")"
 GPG_HOME="${GNUPGHOME:-$HOME/.gnupg}"
 export GNUPGHOME="$GPG_HOME"
 
-decode_passphrase_if_needed() {
+decode_passphrase() {
   if [ -z "${_GPG_PASSPHRASE:-}" ]; then
+    GPG_PASSPHRASE=""
     return 0
   fi
 
-  # Accept both plain text and base64-encoded passphrases.
-  local decoded
-  decoded=$(printf '%s' "$_GPG_PASSPHRASE" | base64 --decode 2>/dev/null || true)
-  if [ -n "$decoded" ]; then
-    _GPG_PASSPHRASE="$decoded"
+  if ! GPG_PASSPHRASE=$(printf '%s' "$_GPG_PASSPHRASE" | base64 --decode 2>/dev/null); then
+    echo "$GPG_PREFIX  ERROR: Failed to decode \$_GPG_PASSPHRASE as base64"
+    exit 1
   fi
 }
 
-echo "$PREFIX  Checking for GPG key to import"
+echo "$GPG_PREFIX Checking for GPG key to import"
 
 if [ -n "${_GPG_KEY:-}" ]; then
   set -e # Fail on error
-  decode_passphrase_if_needed
-
-  # curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
-  # chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-  # echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-  # apt-get update
+  decode_passphrase
   
-  echo "$PREFIX  Initializing GPG environment"
+  echo "$GPG_PREFIX Initializing GPG environment"
   # Kill any existing gpg-agents
   gpgconf --kill gpg-agent 2>/dev/null || true
   sleep 1
@@ -68,14 +63,14 @@ EOF
   EXISTING_KEY_ID=$(gpg --homedir "$GPG_HOME" --list-secret-keys --with-colons 2>/dev/null | awk -F: '$1=="sec"{print $5; exit}')
   
   if [ -n "$EXISTING_KEY_ID" ]; then
-    echo "$PREFIX  Reusing existing secret key $EXISTING_KEY_ID"
+    echo "$GPG_PREFIX Reusing existing secret key $EXISTING_KEY_ID"
     KEY_ID="$EXISTING_KEY_ID"
   else
-    echo "$PREFIX  Found \$_GPG_KEY - decoding with base64 and importing into gpg keyring"
+    echo "$GPG_PREFIX Importing key into gpg keyring"
     IMPORT_OK=0
-    if [ -n "${_GPG_PASSPHRASE:-}" ]; then
-      echo "$PREFIX  Using provided passphrase for key import"
-      if printf '%s' "$_GPG_KEY" | base64 --decode | gpg --homedir "$GPG_HOME" --batch --yes --pinentry-mode loopback --passphrase "$_GPG_PASSPHRASE" --import --quiet; then
+    if [ -n "$GPG_PASSPHRASE" ]; then
+      echo "$GPG_PREFIX Using provided passphrase for key import"
+      if printf '%s' "$_GPG_KEY" | base64 --decode | gpg --homedir "$GPG_HOME" --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --import --quiet; then
         IMPORT_OK=1
       fi
     fi
@@ -87,42 +82,38 @@ EOF
     fi
 
     if [ "$IMPORT_OK" -ne 1 ]; then
-      echo "$PREFIX  ERROR: Failed to import GPG key"
+      echo "$GPG_PREFIX  ERROR: Failed to import GPG key"
       exit 1
     fi
 
-    echo "$PREFIX  Getting the KEY_ID"
+    echo "$GPG_PREFIX Getting the KEY_ID"
     KEY_ID=$(gpg --homedir "$GPG_HOME" --list-secret-keys --with-colons 2>/dev/null | awk -F: '$1=="sec"{print $5; exit}')
   fi
 
   if [ -z "$KEY_ID" ]; then
-    echo "$PREFIX  ERROR: No secret key found after import"
+    echo "$GPG_PREFIX  ERROR: No secret key found after import"
     exit 1
   fi
 
-  echo "$PREFIX  Configuring git to use GPG key $KEY_ID for signing commits"
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git config --local user.signingkey "$KEY_ID"
-    git config --local commit.gpgSign true
-    git config --local gpg.program gpg
-    git config --local gpg.format openpgp
-  else
-    git config --global user.signingkey "$KEY_ID"
-    git config --global commit.gpgSign true
-    git config --global gpg.program gpg
-    git config --global gpg.format openpgp
-  fi
+  echo "$GPG_PREFIX Configuring git to use GPG key $KEY_ID for signing commits"
+  git config --local user.signingkey "$KEY_ID"
+  git config --local commit.gpgSign true
+  git config --local gpg.program gpg
+  git config --local gpg.format openpgp
   
-  echo "$PREFIX  Setting key trust to ultimate"
+  echo "$GPG_PREFIX Setting key trust to ultimate"
   FINGERPRINT=$(gpg --homedir "$GPG_HOME" --list-secret-keys --with-colons "$KEY_ID" 2>/dev/null | awk -F: '$1=="fpr"{print $10; exit}')
   if [ -n "$FINGERPRINT" ]; then
     printf '%s:6:\n' "$FINGERPRINT" | gpg --homedir "$GPG_HOME" --import-ownertrust >/dev/null 2>&1 || true
   fi
 
-  gpgconf --kill gpg-agent >/dev/null 2>&1 || true
-  gpgconf --launch gpg-agent >/dev/null 2>&1 || true
+  # Prime agent cache so the first signed commit does not prompt again.
+  if [ -n "$GPG_PASSPHRASE" ]; then
+    echo "$GPG_PREFIX Warm up GPG passphrase in gpg-agent"
+    printf 'cache-warmup' | gpg --homedir "$GPG_HOME" --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --local-user "$KEY_ID" --sign --armor >/dev/null 2>&1 || true
+  fi
 
-  echo "$PREFIX Ensuring shell startup exports GPG_TTY"
+  echo "$GPG_PREFIX Ensuring shell startup exports GPG_TTY"
   for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
   	touch "$rc"
   	grep -F 'export GPG_TTY=$(tty)' "$rc" >/dev/null 2>&1 || echo 'export GPG_TTY=$(tty)' >> "$rc"
@@ -130,9 +121,9 @@ EOF
   	grep -F 'gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1 || true' "$rc" >/dev/null 2>&1 || echo 'gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1 || true' >> "$rc"
   done
 
-  echo "$PREFIX ✅ GPG setup complete"
+  echo "$GPG_PREFIX ✅ GPG setup complete"
 else
-  echo "$PREFIX  No \$_GPG_KEY defined - skipping GPG key import"
+  echo "$GPG_PREFIX  No \$_GPG_KEY defined - skipping GPG key import"
 fi
 return 0
 
